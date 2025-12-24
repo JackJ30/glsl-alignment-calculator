@@ -1,7 +1,10 @@
+#+feature dynamic-literals
 package main
 
-import "core:math"
+import "core:strconv"
+import "core:strings"
 import "core:fmt"
+import os "core:os/os2"
 
 version: enum {
 	std140,
@@ -10,174 +13,143 @@ version: enum {
 
 main :: proc() {
 
-	structure2 := Structure{Block{ .single, .single }}
-	structure := Structure{Block{ Vector{ type = .single, count = .three }, .single, Vector{ type = .single, count = .two }, Vector{ type = .single, count = .two }, .single, .single, .single, .single, Vector{ type = .single, count = .four } }}
-	block := Block{ Vector{ type = .single, count = .three }, Matrix{ major = .four, minor = .four, type = .single }, structure, structure2 }
+	// read from stdin
+	input, err := os.read_entire_file_from_file(os.stdin, context.temp_allocator)
+	if err != nil {
+		panic("Failed to read input")
+	}
+	lines := strings.split(string(input), "\n", context.temp_allocator)
+
+	// read lines
+	types: [dynamic]Type
+	names: [dynamic]string
+	for &line, i in lines {
+
+		// discard after semicolon
+		semicolon_idx := strings.index(line, ";")
+		if semicolon_idx != -1 do line = line[:semicolon_idx]
+
+		// get fields
+		fields := strings.fields(line, context.temp_allocator)
+		if len(fields) == 0 do continue
+		else if len(fields) != 2 do fmt.panicf("Wrong number of fields on line: %v", i)
+
+		// parse first half
+		type, ok := type_map[fields[0]]
+		if !ok {
+			fmt.panicf("Unknown type '%v' on line: %v", fields[0], i)
+		}
+
+		// parse name
+		name := fields[1]
+
+		// check if there is an array in the name
+		array_start := strings.index(name, "[")
+		array_end := strings.index(name, "]")
+		if array_start != -1 && array_end != -1 {
+			if array_start + 1 >= array_end {
+				fmt.panicf("Messed up array on line: %v", i)
+			}
+				
+			// parse array size
+			array_size, ok := strconv.parse_int(name[array_start + 1 : array_end])
+			if !ok {
+				fmt.panicf("Invalid array size on line: %v", i)
+			}
+
+			// make array based on type
+			name = name[:array_start]
+			switch t in type {
+			case Scalar:
+				type = Array { type = t, size = array_size }
+			case Vector:
+				type = Array { type = t, size = array_size }
+			case Matrix:
+				type = Array { type = t, size = array_size }
+			case Structure:
+				/* type = Array { type = t, size = array_size } */
+			case Array:
+				fmt.panicf("Cannot have an array of arrays on line: %v", i)
+			}
+
+		} else if array_start != -1 || array_end != -1 {
+			fmt.panicf("Unbalanced array on line: %v", i)
+		}
+
+
+		append(&types, type)
+		append(&names, name)
+	}
+
+	block: Block = cast(Block)types[:]
 	calc := calculate_block(block)
 
-	// print
 	prev_end := 0
 	for v, i in block {
 		if calc.offsets[i] > prev_end {
 			fmt.printfln("%v-%v: PADDING", prev_end, calc.offsets[i] - 1)
 		}
 		prev_end = calc.offsets[i] + calc.sizes[i]
-		fmt.printfln("%v-%v: %v", calc.offsets[i], calc.offsets[i] + calc.sizes[i] - 1, v)
+		fmt.printfln("%v-%v: %v", calc.offsets[i], calc.offsets[i] + calc.sizes[i] - 1, names[i])
 	}
 }
 
-// BLOCK
-Block :: distinct []Type
-Calculated_Block :: struct {
-	offsets, sizes: []int,
-	greatest_alginment, total_size: int,
+type_map := map[string]Type{
+	"bool"    = .single,
+	"float"   = .single,
+	"int"     = .single,
+	"uint"    = .single,
+	"double"  = .double,
+
+	"vec2"    = Vector{ type = .single, count = .two },
+	"vec3"    = Vector{ type = .single, count = .three },
+	"vec4"    = Vector{ type = .single, count = .four },
+
+	"bvec2"   = Vector{ type = .single, count = .two },
+	"bvec3"   = Vector{ type = .single, count = .three },
+	"bvec4"   = Vector{ type = .single, count = .four },
+
+	"ivec2"   = Vector{ type = .single, count = .two },
+	"ivec3"   = Vector{ type = .single, count = .three },
+	"ivec4"   = Vector{ type = .single, count = .four },
+
+	"uvec2"   = Vector{ type = .single, count = .two },
+	"uvec3"   = Vector{ type = .single, count = .three },
+	"uvec4"   = Vector{ type = .single, count = .four },
+
+	"dvec2"   = Vector{ type = .double, count = .two },
+	"dvec3"   = Vector{ type = .double, count = .three },
+	"dvec4"   = Vector{ type = .double, count = .four },
+
+	"mat2"    = Matrix{ type = .single, major = .two,   minor = .two },
+	"mat3"    = Matrix{ type = .single, major = .three, minor = .three },
+	"mat4"    = Matrix{ type = .single, major = .four,  minor = .four },
+
+	"mat2x2"  = Matrix{ type = .single, major = .two,   minor = .two },
+	"mat2x3"  = Matrix{ type = .single, major = .two,   minor = .three },
+	"mat2x4"  = Matrix{ type = .single, major = .two,   minor = .four },
+
+	"mat3x2"  = Matrix{ type = .single, major = .three, minor = .two },
+	"mat3x3"  = Matrix{ type = .single, major = .three, minor = .three },
+	"mat3x4"  = Matrix{ type = .single, major = .three, minor = .four },
+
+	"mat4x2"  = Matrix{ type = .single, major = .four,  minor = .two },
+	"mat4x3"  = Matrix{ type = .single, major = .four,  minor = .three },
+	"mat4x4"  = Matrix{ type = .single, major = .four,  minor = .four },
+
+	"dmat2"   = Matrix{ type = .double, major = .two,   minor = .two },
+	"dmat3"   = Matrix{ type = .double, major = .three, minor = .three },
+	"dmat4"   = Matrix{ type = .double, major = .four,  minor = .four },
+
+	"dmat2x2" = Matrix{ type = .double, major = .two,   minor = .two },
+	"dmat2x3" = Matrix{ type = .double, major = .two,   minor = .three },
+	"dmat2x4" = Matrix{ type = .double, major = .two,   minor = .four },
+
+	"dmat3x2" = Matrix{ type = .double, major = .three, minor = .two },
+	"dmat3x3" = Matrix{ type = .double, major = .three, minor = .three },
+	"dmat3x4" = Matrix{ type = .double, major = .three, minor = .four },
+
+	"dmat4x2" = Matrix{ type = .double, major = .four,  minor = .two },
+	"dmat4x3" = Matrix{ type = .double, major = .four,  minor = .three },
+	"dmat4x4" = Matrix{ type = .double, major = .four,  minor = .four },
 }
-calculated_blocks: map[rawptr]Calculated_Block
-
-calculate_block :: proc(b: Block, alloc := context.temp_allocator) -> (calc: Calculated_Block) {
-	if calculated, ok := calculated_blocks[raw_data(b)]; ok {
-		return calculated
-	}
-
-	calc.offsets = make([]int, len(b))
-	calc.sizes = make([]int, len(b))
-	current := 0
-	for v, i in b {
-		alignment := get_alignment(v)
-		calc.greatest_alginment = math.max(calc.greatest_alginment, alignment)
-
-		calc.offsets[i] = round_up(current, alignment)
-		calc.sizes[i] = get_advance(v)
-		current = calc.offsets[i] + calc.sizes[i]
-	}
-	calc.total_size = current
-
-	calculated_blocks[raw_data(b)] = calc
-	return
-}
-
-// TYPE
-Type :: union {
-	Scalar,
-	Vector,
-	Matrix,
-	Array,
-	Structure,
-}
-
-get_advance :: proc(type: Type) -> int {
-	switch v in type {
-	case Scalar:
-		return get_scalar_size(v)
-	case Vector:
-		switch v.count {
-		case .two:
-			return get_scalar_size(v.type) * 2
-		case .three:
-			return get_scalar_size(v.type) * 3
-		case .four:
-			return get_scalar_size(v.type) * 4
-		}
-	case Matrix:
-		return get_advance(get_matrix_array(v))
-	case Array:
-		switch t in v.type {
-		case Scalar:
-			return get_alignment(v) * v.size
-		case Vector:
-			return get_alignment(v) * v.size
-		case Matrix:
-			return get_advance(get_matrix_array(t, v.size))
-		}
-	case Structure:
-		calc := calculate_block(v.block)
-		return round_up(calc.total_size, get_alignment(v))
-	}
-	panic("Invalid type")
-}
-
-get_alignment :: proc(type: Type) -> int {
-	switch v in type {
-	case Scalar:
-		return get_scalar_size(v)
-	case Vector:
-		switch v.count {
-		case .two:
-			return get_scalar_size(v.type) * 2
-		case .three:
-			return get_scalar_size(v.type) * 4
-		case .four:
-			return get_scalar_size(v.type) * 4
-		}
-	case Matrix:
-		return get_alignment(get_matrix_array(v))
-	case Array:
-		switch t in v.type {
-		case Scalar:
-			return round_up_to_vec4(get_alignment(t))
-		case Vector:
-			return round_up_to_vec4(get_alignment(t))
-		case Matrix:
-			return get_alignment(get_matrix_array(t, v.size))
-		}
-	case Structure:
-		return round_up_to_vec4(calculate_block(v.block).greatest_alginment)
-	}
-	panic("Invalid type")
-}
-
-round_up :: proc(val, align: int) -> int {
-	assert(val >= 0)
-	if val == 0 do return 0
-	return (((val - 1) / align) + 1) * align
-}
-
-round_up_to_vec4 :: proc(val: int) -> int {
-	if version == .std430 do return val
-	else do return round_up(val, get_alignment(Vector{ type = .single, count = .four }))
-}
-	
-Scalar :: enum {
-	single,
-	double,
-}
-
-get_scalar_size :: proc(b: Scalar) -> int {
-	switch b {
-	case .single:
-		return 4
-	case .double:
-		return 8
-	}
-	panic("Invalid base type")
-}
-
-Count :: enum {
-	two = 2,
-	three = 3,
-	four = 4,
-}
-
-Vector :: struct {
-	type: Scalar,
-	count: Count
-}
-
-Matrix :: struct {
-	major, minor : Count,
-	type: Scalar,
-}
-
-get_matrix_array :: proc(m: Matrix, num := 1) -> Array {
-	return Array{size = cast(int)m.major * num, type = Vector{ type = m.type, count = m.minor }}
-}
-
-Array :: struct {
-	type: union { Scalar, Vector, Matrix },
-	size: int,
-}
-
-Structure :: struct {
-	block: Block,
-}
-

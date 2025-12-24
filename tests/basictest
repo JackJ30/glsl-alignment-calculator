@@ -1,0 +1,9 @@
+dmat3 position[5]
+float rotation
+vec2 scale
+vec2 padding
+float texu
+float texv
+float texw
+float texh
+vec4 color
