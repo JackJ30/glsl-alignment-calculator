@@ -10,7 +10,9 @@ version: enum {
 
 main :: proc() {
 
-	block := Block{ Vector{ type = .single, count = .three }, Matrix{ major = .four, minor = .four, type = .single }, .single, Vector{ type = .single, count = .two }, Vector{ type = .single, count = .two }, .single, .single, .single, .single, Vector{ type = .single, count = .four } }
+	structure2 := Structure{Block{ .single, .single }}
+	structure := Structure{Block{ Vector{ type = .single, count = .three }, .single, Vector{ type = .single, count = .two }, Vector{ type = .single, count = .two }, .single, .single, .single, .single, Vector{ type = .single, count = .four } }}
+	block := Block{ Vector{ type = .single, count = .three }, Matrix{ major = .four, minor = .four, type = .single }, structure, structure2 }
 	calc := calculate_block(block)
 
 	// print
@@ -28,7 +30,7 @@ main :: proc() {
 Block :: distinct []Type
 Calculated_Block :: struct {
 	offsets, sizes: []int,
-	greatest_alginment: int,
+	greatest_alginment, total_size: int,
 }
 calculated_blocks: map[rawptr]Calculated_Block
 
@@ -48,6 +50,7 @@ calculate_block :: proc(b: Block, alloc := context.temp_allocator) -> (calc: Cal
 		calc.sizes[i] = get_advance(v)
 		current = calc.offsets[i] + calc.sizes[i]
 	}
+	calc.total_size = current
 
 	calculated_blocks[raw_data(b)] = calc
 	return
@@ -59,7 +62,7 @@ Type :: union {
 	Vector,
 	Matrix,
 	Array,
-	/* Structure, */
+	Structure,
 }
 
 get_advance :: proc(type: Type) -> int {
@@ -80,12 +83,15 @@ get_advance :: proc(type: Type) -> int {
 	case Array:
 		switch t in v.type {
 		case Scalar:
-			return round_up_to_vec4(get_alignment(t)) * v.size
+			return get_alignment(v) * v.size
 		case Vector:
-			return round_up_to_vec4(get_alignment(t)) * v.size
+			return get_alignment(v) * v.size
 		case Matrix:
 			return get_advance(get_matrix_array(t, v.size))
 		}
+	case Structure:
+		calc := calculate_block(v.block)
+		return round_up(calc.total_size, get_alignment(v))
 	}
 	panic("Invalid type")
 }
@@ -114,6 +120,8 @@ get_alignment :: proc(type: Type) -> int {
 		case Matrix:
 			return get_alignment(get_matrix_array(t, v.size))
 		}
+	case Structure:
+		return round_up_to_vec4(calculate_block(v.block).greatest_alginment)
 	}
 	panic("Invalid type")
 }
@@ -169,7 +177,7 @@ Array :: struct {
 	size: int,
 }
 
-/* Structure :: struct { */
-/* 	block: Block, */
-/* } */
+Structure :: struct {
+	block: Block,
+}
 
