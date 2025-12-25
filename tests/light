@@ -1,4 +1,4 @@
-#structure light
+#struct light
 vec4 position
 float strength
 float parameters[3]
