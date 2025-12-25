@@ -4,7 +4,7 @@ Reference: https://registry.khronos.org/OpenGL/specs/gl/glspec46.core.pdf pages 
 ## TODO
 - [x] Input
 - [x] Array of structs
-- [ ] Parse structures
+- [x] Parse structures
 - [ ] flag for std140 vs 430
 - [ ] More helpful array output
 - [ ] parse "buffers" (with unsized array)

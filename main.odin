@@ -20,10 +20,48 @@ main :: proc() {
 	}
 	lines := strings.split(string(input), "\n", context.temp_allocator)
 
+	Block_Type :: enum { Uniform, Structure, Storage }
+	Parsed_Block :: struct {
+		type: Block_Type,
+		name: string,
+		types: []Type,
+		names: []string,
+	}
+	parsed_blocks: [dynamic]Parsed_Block
+
 	// read lines
+	type: Block_Type = .Uniform
+	name: string = "Block"
 	types: [dynamic]Type
 	names: [dynamic]string
 	for &line, i in lines {
+
+		// check if we start a new block
+		if strings.index(line, "#") != -1 {
+			// end current block
+			if len(types) > 0 {
+				append(&parsed_blocks, Parsed_Block{ type = type, name = name, types = types[:], names = names[:] })
+				if type == .Structure {
+					type_map[name] = types[:]
+				}
+			}
+
+			// start new block
+			types = make([dynamic]Type, 0)
+			names = make([dynamic]string, 0)
+			if strings.index(line, "#struct") != -1 {
+				type = .Structure
+			} else if strings.index(line, "#uniform") != -1 {
+				type = .Uniform
+			} else if strings.index(line, "#storage") != -1 {
+				type = .Storage
+			} else {
+				fmt.panicf("Bad new block directive at line: %v", i)
+			}
+			name = line[strings.index(line, " ") + 1:]
+
+			continue
+		}
 
 		// discard after semicolon
 		semicolon_idx := strings.index(line, ";")
@@ -40,25 +78,24 @@ main :: proc() {
 			fmt.panicf("Unknown type '%v' on line: %v", fields[0], i)
 		}
 
-		// parse name
-		name := fields[1]
+		// parse second half
+		second_half := fields[1]
 
 		// check if there is an array in the name
-		array_start := strings.index(name, "[")
-		array_end := strings.index(name, "]")
+		array_start := strings.index(second_half, "[")
+		array_end := strings.index(second_half, "]")
 		if array_start != -1 && array_end != -1 {
 			if array_start + 1 >= array_end {
 				fmt.panicf("Messed up array on line: %v", i)
 			}
 				
 			// parse array size
-			array_size, ok := strconv.parse_int(name[array_start + 1 : array_end])
+			array_size, ok := strconv.parse_int(second_half[array_start + 1 : array_end])
 			if !ok {
 				fmt.panicf("Invalid array size on line: %v", i)
 			}
 
 			// make array based on type
-			name = name[:array_start]
 			switch t in type {
 			case Scalar:
 				type = Array { type = t, size = array_size }
@@ -71,26 +108,36 @@ main :: proc() {
 			case Array:
 				fmt.panicf("Cannot have an array of arrays on line: %v", i)
 			}
-
 		} else if array_start != -1 || array_end != -1 {
 			fmt.panicf("Unbalanced array on line: %v", i)
 		}
 
-
 		append(&types, type)
-		append(&names, name)
+		append(&names, line)
+	}
+	// end current block
+	if len(types) > 0 {
+		append(&parsed_blocks, Parsed_Block{ type = type, name = name, types = types[:], names = names[:] })
+		if type == .Structure {
+			type_map[name] = types[:]
+		}
 	}
 
-	block: Block = cast(Block)types[:]
-	calc := calculate_block(block)
+	for &parsed in parsed_blocks {
+		calc := calculate_block(parsed.types)
 
-	prev_end := 0
-	for v, i in block {
-		if calc.offsets[i] > prev_end {
-			fmt.printfln("%v-%v: PADDING", prev_end, calc.offsets[i] - 1)
+		fmt.printfln("%v %v: (size %v)", parsed.type, parsed.name, calc.total_size)
+
+		prev_end := 0
+		for _, i in parsed.types {
+			if calc.offsets[i] > prev_end {
+				fmt.printfln("%v-%v: PADDING", prev_end, calc.offsets[i] - 1)
+			}
+			prev_end = calc.offsets[i] + calc.sizes[i]
+			fmt.printfln("%v-%v: %v", calc.offsets[i], calc.offsets[i] + calc.sizes[i] - 1, parsed.names[i])
 		}
-		prev_end = calc.offsets[i] + calc.sizes[i]
-		fmt.printfln("%v-%v: %v", calc.offsets[i], calc.offsets[i] + calc.sizes[i] - 1, names[i])
+
+		fmt.println("")
 	}
 }
 

@@ -2,15 +2,13 @@ package main
 
 import "core:math"
 
-// BLOCK
-Block :: distinct []Type
 Calculated_Block :: struct {
 	offsets, sizes: []int,
 	greatest_alginment, total_size: int,
 }
 calculated_blocks: map[rawptr]Calculated_Block
 
-calculate_block :: proc(b: Block, alloc := context.temp_allocator) -> (calc: Calculated_Block) {
+calculate_block :: proc(b: []Type, alloc := context.temp_allocator) -> (calc: Calculated_Block) {
 	if calculated, ok := calculated_blocks[raw_data(b)]; ok {
 		return calculated
 	}
@@ -80,7 +78,7 @@ get_advance :: proc(type: Type) -> int {
 			return get_advance(t) * v.size
 		}
 	case Structure:
-		calc := calculate_block(v.block)
+		calc := calculate_block(v)
 		return round_up(calc.total_size, get_alignment(v))
 	}
 	panic("Invalid type")
@@ -113,7 +111,7 @@ get_alignment :: proc(type: Type) -> int {
 			return get_alignment(t)
 		}
 	case Structure:
-		return round_up_to_vec4(calculate_block(v.block).greatest_alginment)
+		return round_up_to_vec4(calculate_block(v).greatest_alginment)
 	}
 	panic("Invalid type")
 }
@@ -160,6 +158,4 @@ Array :: struct {
 	size: int,
 }
 
-Structure :: struct {
-	block: Block,
-}
+Structure :: []Type
