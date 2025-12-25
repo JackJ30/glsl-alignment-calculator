@@ -1,6 +1,7 @@
 #+feature dynamic-literals
 package main
 
+import "core:flags"
 import "core:strconv"
 import "core:strings"
 import "core:fmt"
@@ -12,6 +13,14 @@ version: enum {
 } = .std140
 
 main :: proc() {
+
+	// parse options
+	opts: struct {
+		std140: bool `usage:"Use std140 layout (default)"`,
+		std430: bool `usage:"Use std430 layout"`, 
+	}
+	flags.parse_or_exit(&opts, os.args, .Unix)
+	if opts.std430 do version = .std430
 
 	// read from stdin
 	input, err := os.read_entire_file_from_file(os.stdin, context.temp_allocator)
