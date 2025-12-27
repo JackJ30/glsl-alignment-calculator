@@ -22,7 +22,7 @@ calculate :: proc(input: string, out: io.Writer, version: Version) {
 
 	// initial block
 	current_block: ^Block = new(Block)
-	current_block.title = "Implicit"
+	current_block.title = ""
 	append(&blocks, current_block)
 
 	// read lines
@@ -38,7 +38,9 @@ calculate :: proc(input: string, out: io.Writer, version: Version) {
 			}
 
 			// get title
-			current_block.title = line[strings.index(line, " ") + 1:]
+			space_idx := strings.index(line, " ")
+			if space_idx == -1 do fmt.panicf("Bad new block directive at line: %v", i)
+			current_block.title = line[space_idx + 1:]
 
 			// get type
 			if strings.index(line, "#struct") != -1 {
@@ -105,15 +107,20 @@ calculate :: proc(input: string, out: io.Writer, version: Version) {
 		append(&current_block.elements, Block_Element{ name = line, type = type })
 	}
 
+	// Send output
 	for block in blocks {
 
 		calc := calculate_block(block)
 
+		target_size: int
 		switch block.type {
 		case .Uniform:
-			fmt.wprintfln(out, "Uniform %v: (size %v)", block.title, calc.total_size)
+			target_size = calc.total_size
+			if block.title != "" do fmt.wprintfln(out, "Uniform %v: (size %v)", block.title, target_size)
+			
 		case .Structure:
-			fmt.wprintfln(out, "Struct %v: (size %v)", block.title, get_size(block)) // block is a valid Structure
+			target_size = get_size(block)  // block is a valid Structure
+			fmt.wprintfln(out, "Struct %v: (size %v)", block.title, target_size)
 		}
 
 		prev_end := 0
@@ -123,6 +130,9 @@ calculate :: proc(input: string, out: io.Writer, version: Version) {
 			}
 			prev_end = calc.offsets[i] + calc.sizes[i]
 			fmt.wprintfln(out, "%v-%v: %v", calc.offsets[i], calc.offsets[i] + calc.sizes[i] - 1, e.name)
+		}
+		if block.type == .Structure && target_size > prev_end {
+			fmt.wprintfln(out, "%v-%v: STRUCT PADDING", prev_end, target_size - 1)
 		}
 
 		fmt.wprintln(out, "")
