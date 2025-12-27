@@ -6,10 +6,14 @@
 	<meta http-equiv="X-UA-Compatible" content="IE=edge">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title>GLSL Layout Calculator</title>
+	<link rel="stylesheet" href="style.css">
   </head>
 
   <body>
 	<h2>GLSL Std140 and Std430 Layout Calculator</h2>
+	<a href="https://jackjamison.net">by Jack Jamison</a>
+	<br>
+	<br>
 	<div>
 	  <textarea rows=20 cols=25 id="input"></textarea>
 	  <textarea rows=20 cols=40 id="output" readOnly=true></textarea>
@@ -21,11 +25,12 @@
 	</div>
 
 	<h2>Instructions</h2>
-	<p>In the text field on the left, enter of list of elements each in the format: "<b>type name</b>". For the most part, you can just paste in your glsl code. You can define structs and uniform blocks with the syntax "#uniform <b>name</b>" or "#struct <b>name</b>".</p>
+	<p>In the text field on the left, enter of list of elements each in the format: "<b>type name</b>".<br>
+	  For the most part, you can just paste in your glsl code. You can define structs and uniform blocks with the syntax "#uniform <b>name</b>" or "#struct <b>name</b>".</p>
 
 	<h2>About</h2>
+	<a href="https://github.com/JackJ30/glsl-alignment-calculator">Source code</a><br>
 	<a href="https://registry.khronos.org/OpenGL/specs/gl/glspec46.core.pdf">For detailed rules, read the OpenGL spec, pages 146-147</a><br>
-	<a href="https://github.com/JackJ30/glsl-alignment-calculator">Source code</a>
 
 	<script type="text/javascript" src="odin.js"></script>
 	<script type="text/javascript" src="index.js"></script>
